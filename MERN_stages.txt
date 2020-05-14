@@ -1,0 +1,224 @@
+М.E.R.N По шагам ======================================================================
+1.Подключаемся к базе данных MongoDB в файле "app.js"
+1.1 
+   const mongoose = require('mongoose'); 
+   const config = require('config');
+   const mongoose = require('mongoose');
+
+2.Пишем/Регистрируем роуты/маршруты ============================================================================================
+2.1. Создается дериктория/папка "routes"
+   1. Создаем Файл: "auth.routes.js"
+   1.1
+      Подключаем из библиотеки то что нужно для создания роутинга
+      const { Router } = require('express'); подводим из библиотеки
+      const bcrypt = require('bcryptjs'); библиотека для шифрования пароля
+      const config = require('config'); подключаем конфиг в котором лежат наши нужные штуки например для данного файла
+        секретный ключ "jwtSecret": "mikdev mern",
+      const { check, validationResult } = require('express-validator'); валидация формы должна проходить на сервере 
+        используем спец пакет и методы check, validationResult
+      const jwt = require('jsonwebtoken'); библиотека для работы с токеном токен содержит в себе данные из браузера
+        в одной строке в которой зашифрованы данные при регистрации на стороне ФРОНТА
+      const User = require('../models/User'); заводим модель User/пользователя
+      const router = Router(); создаем переменную фукциональную от Router
+--------------------------------------------------------------------------------------------------------------------------------
+   /**
+   * /api/auth/register имеет полный путь
+   * то-что отправляем с ФРОНТА
+   * const { email, password } = req.body; выбираем из(обьекта) тела(body) при запросе(поля) email, password
+   * const condidate = await User.findOne({ email }); ждем когда в модели User методом findOne({ email }) найдем как объект email
+   * if(condidate) если такой труе то такой пользователь уже есть return остановит скрипт
+   * const hashedPassword = await bcrypt.hash(password, 12); асинхроним шифруем полученый с хеша (password, на 12 раундов)
+   * const user = new User({ email, password: hashedPassword }); создаем пользователя наследуя
+   * по классу ({email, и переназначаем поле password на зашифрованный hashedPassword })
+   * await user.save(); ждем когда пользователь сохранится
+   * res.status(201).json({ message: 'Ползователь создан' }) res-ответ на ФРОНТ (201 когда что-то создается )
+   * [
+   *   check('email', 'Некорректный email').isEmail(), что проверяем , сообщение в случае ошибки .isEmail() метод проверки
+   *   check('password', 'Минимальная длинна 6 символов').isLength({ min: 6 })  
+   *   что проверяем , сообщение в случае ошибки.isLength({ min: 6 }) метод проверки на длинну пароля 
+   * ],
+   * const errors = validationResult(req); результат валидации содержит ошибку или нет
+   * if(!errors.isEmpty()){} если ошибка не Пустая(.isEmpty())
+   * return res.status(400).json({}) тогда возвращаем на фронт ошибку 400 и обьект 
+   * errors: errors.array(), поле ошибки как массив
+   * message: 'Некорректные данные при регистрации' и сообщение 
+   */
+   router.post('/register', 
+      [
+        check('email', 'Некорректный email').isEmail(),
+        check('password', 'Минимальная длинна 6 символов').isLength({ min: 6 })
+      ], 
+      async (req, res) => {
+      try {
+         const errors = validationResult(req);
+         if(!errors.isEmpty()) {
+            return res.status(400).json({ 
+               errors: errors.array(),
+               message: 'Некорректные данные при регистрации'
+            })
+         }
+         
+        const { email, password } = req.body;
+
+        const condidate = await User.findOne({ email });
+         if(condidate) { 
+            return res.status(400).json({ message: 'Такой пользователь уже существует' })
+         }
+         const hashedPassword = await bcrypt.hash(password, 12);
+         const user = new User({ email, password: hashedPassword });
+         await user.save();
+         res.status(201).json({ message: 'Ползователь создан' })
+
+      } catch (err) {
+         res.status(500).json({ message: '...Error server !!!' })
+      }
+   });
+---------------------------------------------------------------------------------------------------------------------------------
+/**
+* /api/auth/login имеет полный путь 
+* запрос на сервер после регистрации вход под своим
+* [
+*   check('email', 'Введите корректный email')
+* .normalizeEmail() проверки валидации
+* .isEmail(), проверки валидации
+*   check('password', 'Введите пароль').exists() проверки валидации на то что пароль должен существовать 
+* ],
+* const {email, password} = req.body; получаем из запроса 
+* const user = new User.findOne({ email }); находим юзера по ({ email }) и сохроняем его в переменную
+* .findOne ищем ОДНОГО ползователя!
+* if(!user) { если нет такого пользователя  
+*     return res.status(400).json({ message: 'Пользователь не найден'}) 
+*  };
+* const isMatch = await bcrypt.compare(password, user.password); сравниваем захешированные пароли
+* password, пароль полученный с ФРОНТА 
+* user.password пароль в Базе Данных
+* if(!isMatch) { false то пароли не совпадают 
+*    return res.status(400).json({ message: 'Неверный пароль' }) res.отправить на ФРОНТ
+* };
+*------------------------------------------------------------------------------
+* const jwt = require('jsonwebtoken'); библиотека для работы с токеном токен
+* const token = jwt.sign( .sign метод библиотеки  
+*     { userId: user.Id }, // данные которые зашифрованны в jwt токене .
+*     config.get('jwtSecret'),//jwtSecret: название поля, секретный ключ (создаем в конфиге)
+*     { expiresIn: '1h' } // жизненный периуд токена . 
+*  );
+*  res.json({ token, userId: user.id }); на ФРОНТ 200 статус по умолчанию 
+*  token,
+*  userId: user.id
+*-------------------------------------------------------------------------------
+*
+*
+*
+*
+*
+*
+*
+*/
+router.post(
+   '/login', 
+   [
+      check('email', 'Введите корректный email').normalizeEmail().isEmail(),
+      check('password', 'Введите пароль').exists()
+   ],
+   async (req, res) => {
+   try {
+       const errors = validationResult(req);
+         if(!errors.isEmpty()) {
+            return res.status(400).json({ 
+            errors: errors.array(),
+            message: 'Некорректные данные при входе в систему'
+         })
+      }
+      
+      const {email, password} = req.body; 
+
+      const user = new User.findOne({ email });
+      if(!user) {
+        return res.status(400).json({ message: 'Пользователь не найден'}) 
+      }
+   
+      const isMatch = await bcrypt.compare(password, user.password);
+      if(!isMatch) {
+         return res.status(400).json({ message: 'Неверный пароль' })
+      }
+
+      const token = jwt.sign(//
+         { userId: user.Id },//
+         config.get('jwtSecret'),//секретка токена
+         { expiresIn: '1h' }// длительност жизни токена 1h час
+      );
+
+      res.json({ token, userId: user.id });
+          
+   } catch (err) {
+      res.status(500).json({ message: '...Error server !!!' })
+   }
+});
+module.exports = router; экспортируем все содержимое файла "routes/auth.routes.js" в "app.js"
+
+---------------------------------------------------------------------------------------
+2.2. В файле "app.js"
+ /**
+ * Мидолвар 
+ * ('/api/auth') наш поинт для регистрации 
+ * require('./routes/auth.routes.js') собственно наш router
+ */
+app.use('/api/auth', require('./routes/auth.routes'));
+----------------------------------------------------------------------------------------
+3.Создаем/пишем модели =================================================================
+   *это что то вроде матриц обьектов с полями которые мы отправляем на сервер
+3.1 Создается дериктория/папка "Models" 
+   1. Создаем файл: User.js это и будет модель Юзера который полетит на Базу данных
+   1.1 
+      Подключаем из библиотеки то что нужно для создания модели User
+      /**
+      * const { Schema, model, Types } = require('mongoose'); подводим из библиотеки Schema, model, Types
+      * Schema, сласс по которому строится schema (обьект пользователя)
+      * model, функция которая экспортируется , обозначает в себе имя и тип обьекта (с нами выбранными полями)
+      * Types 
+      */
+      const { Schema, model, Types } = require('mongoose');
+   1.2 
+      /**
+      * создатся переменная schema через конструктор new Schema
+      * поле email: { // содержит поля для email
+      *      type: String, все это стринг (String это класс)
+      *      required: true, обязательный (имеется ввиду email)
+      *      unique: true, уникальный (имеется ввиду email) 
+      *   }
+      * поле password: { // содержит поля для password
+      *      type: String, все это стринг (String это класс)
+      *      required: true, обязательный (имеется ввиду password)
+      *      !* поле с уникальностью не ставим (допускаем совпадения пароля) 
+      *  },
+      * поле links: [{ // содержит массив ссылок относящихся к определенному пользователю по id
+      *      type: Types.ObjectId специальный тип-связка (Types специальная константа библиотеки mongoose))
+      *          .ObjectId отвечает видимо за создание id 
+      *          для связывания модели пользователя с Базой Данных по id
+      *     !*ref: 'Link' привязка нашей модели по id к будущей модели "Link"
+      *  }]
+      *
+      */
+      const schema = new Schema ({
+         email: { // содержит поля для email
+            type: String,
+            required: true,
+            unique: true,
+         },
+         password: { // содержит поля для password
+            type: String,
+            required: true,
+            !*поле с уникальностью не ставим
+         },
+         links: !*[ { // содержит массив ссылок(links) относящихся к определенному пользователю по id
+            type: Types.ObjectId,
+            ref: 'Link' 
+         }]
+      });
+   1.3 
+      /**
+      * Експортируем резултят работы функции модел
+      * 'User' имя нешей модели
+      *  schema обьект по которой работает модель 
+      */
+      module.exports = model('User', schema) экспортируем все содержимое файла "models/User.js" в "routes/auth.routes.js"  

@@ -1,0 +1,6 @@
+{
+   "port": 4000,
+   "jwtSecret": "mikdevmern",
+   "mongoUri": "mongodb+srv://mik:123@cluster0-3wuln.azure.mongodb.net/test?retryWrites=true&w=majority",
+   "baseUrl": "http://localhost:4000"
+}
